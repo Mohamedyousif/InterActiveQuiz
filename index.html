@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Thumbs Quiz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400;500;600;700&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: quiz picker / questions on the left, camera on the right; stacked on narrow screens */
+  :root {
+    --sky: #dcefff;
+    --ink: #1c2758;
+    --muted: #5d6b98;
+    --card: #ffffff;
+    --blue: #3b82f6;
+    --good: #16a34a;
+    --good-bg: #dcfce7;
+    --bad: #e11d48;
+    --bad-bg: #ffe4e6;
+    --sun: #fbbf24;
+    --night: #1c2758;
+    --font: "Fredoka", "Baloo Bhaijaan 2", "Comic Sans MS", system-ui, sans-serif;
+    --font-ar: "Baloo Bhaijaan 2", "Fredoka", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--sky); color: var(--ink); font-family: var(--font); overflow: hidden; }
+  [lang="ar"] { font-family: var(--font-ar); }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+  .app {
+    height: 100%; display: grid; gap: 16px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    padding-block: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  /* ---------- Left panel ---------- */
+  .quiz { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .quiz-head { display: flex; align-items: center; gap: 10px; }
+  .quiz-head h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 700; flex: 1; line-height: 1.2; }
+  .round {
+    width: 46px; height: 46px; flex: none; border-radius: 50%; border: 0; background: var(--card);
+    font-size: 1.3rem; box-shadow: 0 2px 0 rgba(28,39,88,.12); display: grid; place-items: center; padding: 0;
+    color: var(--ink);
+  }
+  .round svg { width: 22px; height: 22px; }
+  [dir="rtl"] #back svg { transform: scaleX(-1); }
+  #progress { margin: 0; color: var(--muted); font-size: 1.05rem; }
+  .scroll { overflow-y: auto; min-height: 0; padding: 4px 6px 4px 2px; }
+
+  /* Quiz picker */
+  .picker { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .pick {
+    width: 100%; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+    text-align: start; background: var(--card); border: 3px solid transparent; border-radius: 22px;
+    padding: 14px 16px; color: var(--ink); box-shadow: 0 4px 0 rgba(28,39,88,.1);
+    transition: transform .15s, border-color .15s;
+  }
+  .pick:hover { border-color: var(--blue); transform: translateY(-2px); }
+  .pick .icon { font-size: 2.6rem; text-align: center; line-height: 1; }
+  .pick .name { display: block; font-size: 1.35rem; font-weight: 600; line-height: 1.3; }
+  .pick .sub { display: block; color: var(--muted); font-size: 1rem; margin-top: 2px; }
+  .pick .tag {
+    font-family: var(--font); font-size: .85rem; font-weight: 600; letter-spacing: .04em;
+    background: var(--sky); color: var(--ink); border-radius: 999px; padding: 4px 10px;
+  }
+
+  /* Question cards */
+  #list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .q {
+    display: grid; grid-template-columns: 58px minmax(0, 1fr) 48px; align-items: center; gap: 10px;
+    background: var(--card); border: 3px solid transparent; border-radius: 20px; padding: 10px 12px;
+    opacity: .5; transition: opacity .3s, transform .3s, background .3s, border-color .3s;
+    box-shadow: 0 3px 0 rgba(28,39,88,.08);
+  }
+  .q .pic { font-size: 2.2rem; text-align: center; line-height: 1; }
+  .q .text { font-size: clamp(1.05rem, 2.2vw, 1.35rem); font-weight: 500; line-height: 1.35; }
+  [lang="ar"] .q .text { font-size: clamp(1.15rem, 2.4vw, 1.45rem); line-height: 1.5; }
+  .q .badge { font-size: 2rem; text-align: center; line-height: 1; }
+  .q.current { opacity: 1; border-color: var(--blue); transform: scale(1.02); }
+  .q.right { opacity: 1; background: var(--good-bg); border-color: var(--good); }
+  .q.wrong { opacity: 1; background: var(--bad-bg); border-color: var(--bad); }
+  .q.wrong .badge { color: var(--bad); font-weight: 700; }
+  .q .replay { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--sky); font-size: 1.2rem; }
+  .pop { animation: pop .6s cubic-bezier(.2, 1.6, .4, 1) both; }
+  @keyframes pop { from { transform: scale(0) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
+
+  /* ---------- Camera panel ---------- */
+  .cam {
+    position: relative; min-height: 0; border-radius: 26px; overflow: hidden;
+    background: var(--night); color: #fff; box-shadow: 0 6px 0 rgba(28,39,88,.18);
+  }
+  .cam video, .cam canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);
+  }
+  .start-pane {
+    position: absolute; inset: 0; display: grid; place-content: center; justify-items: center;
+    gap: 14px; padding: 20px; text-align: center; background: rgba(28,39,88,.6);
+  }
+  .start-pane .thumbs { font-size: 3.6rem; display: flex; gap: 22px; }
+  .start-pane .thumbs span:first-child { animation: wave 1.6s ease-in-out infinite; }
+  .start-pane .thumbs span:last-child { animation: wave 1.6s ease-in-out .8s infinite; }
+  @keyframes wave { 50% { transform: translateY(-10px) rotate(-8deg); } }
+  .start-pane p { margin: 0; font-size: 1.2rem; max-width: 22rem; color: #d9e2ff; line-height: 1.5; }
+  #start {
+    border: 0; border-radius: 999px; padding: 14px 44px; font-size: 1.5rem; font-weight: 700;
+    color: var(--ink); background: var(--sun); box-shadow: 0 5px 0 #c98a06;
+  }
+  #start:active { transform: translateY(3px); box-shadow: 0 2px 0 #c98a06; }
+  #start:disabled { opacity: .7; cursor: wait; }
+  #camError { color: #ffc2cc; font-size: 1rem; }
+  #close {
+    position: absolute; top: 12px; right: 12px; z-index: 3; width: 44px; height: 44px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.3); background: rgba(28,39,88,.55); color: #fff;
+    display: grid; place-items: center; padding: 0;
+  }
+  #close svg { width: 20px; height: 20px; }
+  .answer-bar {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; justify-content: center;
+    gap: 12px; padding: 12px; background: linear-gradient(to top, rgba(28,39,88,.7), transparent);
+  }
+  .answer-bar button {
+    border: 0; border-radius: 999px; padding: 10px 22px; font-size: 1.2rem; font-weight: 600; color: #fff;
+    min-width: 7.5rem;
+  }
+  #yesBtn { background: var(--good); box-shadow: 0 4px 0 #0f7a36; }
+  #noBtn  { background: var(--bad);  box-shadow: 0 4px 0 #a3123a; }
+  .answer-bar button:disabled { opacity: .45; cursor: default; }
+  #bubble {
+    position: absolute; left: 50%; top: 45%; z-index: 2; transform: translate(-50%, -50%);
+    padding: 14px 30px; border-radius: 999px; font-size: 2rem; font-weight: 700; color: #fff;
+    pointer-events: none; opacity: 0; white-space: nowrap;
+  }
+  #bubble.yes { background: var(--good); } #bubble.no { background: var(--bad); }
+  #bubble.show { animation: bubble 1.3s ease-out forwards; }
+  @keyframes bubble {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    30% { transform: translate(-50%, -50%) scale(1); }
+    80% { opacity: 1; } 100% { opacity: 0; }
+  }
+
+  /* ---------- End of game ---------- */
+  #party { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 22; pointer-events: none; }
+  #result {
+    position: fixed; inset: 0; z-index: 21; display: grid; place-items: center;
+    background: rgba(28,39,88,.45); padding: 16px;
+  }
+  .result-card {
+    background: var(--card); border-radius: 28px; padding: 26px 22px; text-align: center;
+    display: grid; gap: 10px; justify-items: center; width: min(27rem, 100%);
+    box-shadow: 0 8px 0 rgba(28,39,88,.2);
+  }
+  .result-card .big { font-size: 4rem; line-height: 1; }
+  .result-card h2 { margin: 0; font-size: 2rem; line-height: 1.3; }
+  #stars { font-size: clamp(1.15rem, 5.4vw, 1.7rem); display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; direction: ltr; max-width: 100%; }
+  #stars .off { filter: grayscale(1); opacity: .3; }
+  #score { margin: 0; font-size: 1.2rem; color: var(--muted); }
+  .result-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 6px; }
+  #again, #other {
+    border: 0; border-radius: 999px; padding: 12px 28px; font-size: 1.25rem; font-weight: 700;
+  }
+  #again { color: #fff; background: var(--blue); box-shadow: 0 5px 0 #1d5fd0; }
+  #other { color: var(--ink); background: var(--sky); box-shadow: 0 5px 0 #b5d6f5; }
+
+  @media (max-width: 760px) {
+    .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+    .q { grid-template-columns: 46px minmax(0, 1fr) 44px; padding: 8px 10px; }
+    .q .pic { font-size: 1.8rem; }
+    .pick { grid-template-columns: 52px minmax(0, 1fr) auto; padding: 12px; }
+    .pick .icon { font-size: 2.2rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .start-pane .thumbs span { animation: none !important; }
+    .pop { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="quiz" id="quizPanel" aria-label="Quiz">
+    <div class="quiz-head">
+      <button class="round" id="back" hidden aria-label="Choose another quiz" title="Choose another quiz">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h1 id="heading">Pick a quiz</h1>
+      <button class="round" id="mute" aria-label="Turn voice off" title="Voice on/off">🔊</button>
+    </div>
+    <p id="progress">Choose a quiz to play · اختر اختبارًا للعب</p>
+    <div class="scroll">
+      <ul class="picker" id="picker"></ul>
+      <ol id="list" hidden></ol>
+    </div>
+  </section>
+
+  <section class="cam" id="cam" aria-label="Camera">
+    <video id="video" playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="start-pane" id="startPane">
+      <div class="thumbs" aria-hidden="true"><span>👍</span><span>👎</span></div>
+      <p id="startHint">Pick a quiz to begin.<br><span lang="ar" dir="rtl">اختر اختبارًا للبدء.</span></p>
+      <button id="start" hidden>Start</button>
+      <p id="camError" hidden></p>
+    </div>
+    <button id="close" hidden aria-label="Stop the game and close the camera" title="Close camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div id="bubble" aria-live="polite"></div>
+    <div class="answer-bar" id="answerBar" hidden>
+      <button id="yesBtn">👍 Yes</button>
+      <button id="noBtn">👎 No</button>
+    </div>
+  </section>
+</div>
+
+<canvas id="party" hidden></canvas>
+<div id="result" hidden role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+  <div class="result-card" id="resultCard">
+    <div class="big" id="resultEmoji">🎉</div>
+    <h2 id="resultTitle">You did it!</h2>
+    <div id="stars" aria-hidden="true"></div>
+    <p id="score"></p>
+    <div class="result-actions">
+      <button id="again">Play again</button>
+      <button id="other">Choose another quiz</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// =====================================================================
+// Quizzes. Later these will come from an external source: replace the
+// body of loadQuizzes() with a fetch() that returns the same shape.
+//   { id, lang: "ar" | "en", title, subtitle, icon,
+//     questions: [{ pic, text, answer: true|false, why }] }
+// `why` is spoken after the answer, to teach the right fact.
+// =====================================================================
+const QUIZZES = [
+  {
+    id: "general-ar", lang: "ar", icon: "🌍",
+    title: "معلومات عامة", subtitle: "الأرض والفضاء والوقت",
+    questions: [
+      { pic: "⏰", text: "في اليوم أربع وعشرون ساعة.", answer: true,
+        why: "في اليوم أربع وعشرون ساعة." },
+      { pic: "🌈", text: "لقوس قزح ثلاثة ألوان فقط.", answer: false,
+        why: "لقوس قزح سبعة ألوان." },
+      { pic: "🪐", text: "كوكب المشتري هو أكبر كوكب في المجموعة الشمسية.", answer: true,
+        why: "المشتري هو أكبر الكواكب." },
+      { pic: "📅", text: "شهر فبراير هو أقصر شهر في السنة.", answer: true,
+        why: "فبراير فيه ثمانية وعشرون أو تسعة وعشرون يومًا فقط." },
+      { pic: "🗺️", text: "على الأرض خمس قارات فقط.", answer: false,
+        why: "على الأرض سبع قارات." },
+      { pic: "🌅", text: "تغرب الشمس من جهة الشرق.", answer: false,
+        why: "تشرق الشمس من الشرق، وتغرب في الغرب." },
+      { pic: "🐋", text: "الحوت الأزرق هو أكبر حيوان في العالم.", answer: true,
+        why: "الحوت الأزرق هو أكبر حيوان في العالم." },
+      { pic: "🦁", text: "أفريقيا هي أصغر قارة في العالم.", answer: false,
+        why: "أصغر قارة في العالم هي أستراليا." },
+      { pic: "🔴", text: "كوكب الزهرة يسمى الكوكب الأحمر.", answer: false,
+        why: "الكوكب الأحمر هو المريخ." },
+      { pic: "🏔️", text: "جبل إيفرست هو أعلى جبل في العالم.", answer: true,
+        why: "إيفرست هو أعلى جبل في العالم." },
+    ],
+  },
+  {
+    id: "science-ar", lang: "ar", icon: "🔬",
+    title: "علوم وثقافة", subtitle: "الحيوانات والكواكب والبلدان",
+    questions: [
+      { pic: "🕷️", text: "للعنكبوت ستة أرجل.", answer: false,
+        why: "للعنكبوت ثمانية أرجل." },
+      { pic: "📐", text: "للمثلث ثلاثة أضلاع.", answer: true,
+        why: "للمثلث ثلاثة أضلاع." },
+      { pic: "🪐", text: "كوكب زحل تحيط به حلقات.", answer: true,
+        why: "زحل تحيط به حلقات جميلة." },
+      { pic: "🐙", text: "للأخطبوط ثماني أذرع.", answer: true,
+        why: "للأخطبوط ثماني أذرع." },
+      { pic: "🍎", text: "تسقط الأشياء على الأرض بسبب الجاذبية.", answer: true,
+        why: "الجاذبية تشد الأشياء نحو الأرض." },
+      { pic: "☀️", text: "في المجموعة الشمسية عشرون كوكبًا.", answer: false,
+        why: "في المجموعة الشمسية ثمانية كواكب." },
+      { pic: "🏅", text: "بدأت الألعاب الأولمبية في الصين.", answer: false,
+        why: "بدأت الألعاب الأولمبية في اليونان." },
+      { pic: "🐫", text: "هرم خوفو الأكبر موجود في مصر.", answer: true,
+        why: "هرم خوفو في الجيزة في مصر، وقد بناه المصريون القدماء." },
+      { pic: "🕊️", text: "الحمامة البيضاء رمز للحرب.", answer: false,
+        why: "الحمامة البيضاء رمز للسلام." },
+      { pic: "⚽", text: "يتكلم أهل البرازيل اللغة الإسبانية.", answer: false,
+        why: "يتكلم أهل البرازيل اللغة البرتغالية." },
+    ],
+  },
+  {
+    id: "starter-en", lang: "en", icon: "🐶",
+    title: "Animals & Things", subtitle: "Easy questions in English",
+    questions: [
+      { pic: "🍌", text: "Bananas are yellow.", answer: true, why: "Bananas are yellow." },
+      { pic: "🐶", text: "A dog says meow.", answer: false, why: "A dog says woof woof! A cat says meow." },
+      { pic: "🐟", text: "Fish live in water.", answer: true, why: "Fish live in water." },
+      { pic: "🌙", text: "The sun comes out at night.", answer: false, why: "The moon comes out at night. The sun comes out in the day." },
+      { pic: "🍎", text: "One apple and one apple make two apples.", answer: true, why: "One and one make two." },
+      { pic: "🐄", text: "Cows give us milk.", answer: true, why: "Cows give us milk." },
+      { pic: "🐘", text: "An elephant is smaller than a mouse.", answer: false, why: "An elephant is much, much bigger than a mouse!" },
+      { pic: "❄️", text: "Snow is hot.", answer: false, why: "Snow is cold!" },
+      { pic: "🚲", text: "A bicycle has two wheels.", answer: true, why: "A bicycle has two wheels." },
+      { pic: "🐸", text: "A frog says moo.", answer: false, why: "A frog says ribbit! A cow says moo." },
+    ],
+  },
+];
+async function loadQuizzes() { return QUIZZES; }
+
+const PASS_RATIO = 0.8;   // 8 of 10 right earns the celebration
+
+// Words the app says and shows, per quiz language
+const num = (n, lang) => n.toLocaleString(lang === "ar" ? "ar-EG" : "en");
+const STR = {
+  en: {
+    dir: "ltr", voice: "en-US", yes: "Yes", no: "No", start: "Start",
+    hint: "Thumb up means <strong>Yes</strong>. Thumb down means <strong>No</strong>.",
+    count: (n) => `${n} questions`, ready: (n) => `${n} questions. Listen, then show your thumb!`,
+    qOf: (i, n) => `Question ${i} of ${n}`, ask: " Yes, or no?",
+    praise: ["Great job!", "Yes! You're right!", "Super!", "Well done!", "Awesome!"], oops: "Oops! ",
+    done: (s, n) => `All done! ${s} of ${n} right.`, score: (s, n) => `${s} of ${n} right`,
+    win: "You did it!", lose: "Let's try again!", again: "Play again", retry: "Try again", other: "Choose another quiz",
+    winSay: (s, n) => `Hooray! You got ${s} out of ${n}! You did it!`,
+    loseSay: (s, n) => `You got ${s} out of ${n}. Let's try again!`,
+    letsPlay: "Let's play!", hear: "Hear it again", noCam: "The camera is off, so use the buttons to play.",
+  },
+  ar: {
+    dir: "rtl", voice: "ar-EG", yes: "صح", no: "خطأ", start: "ابدأ",
+    hint: "الإبهام لأعلى يعني <strong>صح</strong>. الإبهام لأسفل يعني <strong>خطأ</strong>.",
+    count: (n) => `${n} أسئلة`, ready: (n) => `${n} أسئلة. استمع، ثم أشر بإبهامك!`,
+    qOf: (i, n) => `السؤال ${i} من ${n}`, ask: " صح، أم خطأ؟",
+    praise: ["أحسنت!", "برافو عليك!", "ممتاز!", "إجابة صحيحة!", "رائع!"], oops: "للأسف! ",
+    done: (s, n) => `انتهينا! ${s} من ${n} إجابات صحيحة.`, score: (s, n) => `${s} من ${n} إجابات صحيحة`,
+    win: "أحسنت! لقد نجحت!", lose: "هيا نحاول مرة أخرى!", again: "العب مرة أخرى", retry: "حاول مرة أخرى", other: "اختر اختبارًا آخر",
+    winSay: (s, n) => `هييه! حصلت على ${s} من ${n}. أحسنت!`,
+    loseSay: (s, n) => `حصلت على ${s} من ${n}. هيا نحاول مرة أخرى!`,
+    letsPlay: "هيا نلعب!", hear: "اسمع السؤال مرة أخرى", noCam: "الكاميرا لا تعمل، العب باستخدام الأزرار.",
+  },
+};
+
+// ================= Tracker loading (CDN with fallbacks) =================
+const V = "0.10.14";
+const LIBS = [
+  `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${V}`,
+  `https://unpkg.com/@mediapipe/tasks-vision@${V}`,
+  `https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@${V}`,
+];
+const MODELS = [
+  "https://cdn.jsdelivr.net/npm/expo-vision-camera-v4-mediapipe@1.4.0/hand_landmarker.task",
+  "https://unpkg.com/expo-vision-camera-v4-mediapipe@1.4.0/hand_landmarker.task",
+  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+];
+async function firstWorking(urls, fn) {
+  const errs = [];
+  for (const u of urls) {
+    try { return await fn(u); } catch (e) { errs.push(new URL(u).host + ": " + (e.message || e)); }
+  }
+  throw new Error(errs.join(" | "));
+}
+async function loadTracker() {
+  let HandLandmarker;
+  const base = await firstWorking(LIBS, async (b) => {
+    ({ HandLandmarker } = await import(`${b}/vision_bundle.mjs`));
+    return b;
+  });
+  const model = await firstWorking(MODELS, async (u) => {
+    const r = await fetch(u);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return new Uint8Array(await r.arrayBuffer());
+  });
+  const fileset = {
+    wasmLoaderPath: `${base}/wasm/vision_wasm_internal.js`,
+    wasmBinaryPath: `${base}/wasm/vision_wasm_internal.wasm`,
+  };
+  const opts = (delegate) => ({ baseOptions: { modelAssetBuffer: model, delegate }, runningMode: "VIDEO", numHands: 2 });
+  try { return await HandLandmarker.createFromOptions(fileset, opts("GPU")); }
+  catch { return await HandLandmarker.createFromOptions(fileset, opts("CPU")); }
+}
+
+// ================= Thumbs up / down recognition =================
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function classifyGesture(lm) {
+  const palm = dist(lm[0], lm[9]);
+  if (palm < 0.02) return null;
+  for (const [tip, pip] of [[8, 6], [12, 10], [16, 14], [20, 18]]) {
+    if (dist(lm[tip], lm[0]) > dist(lm[pip], lm[0])) return null;   // fingers must be curled
+  }
+  if (dist(lm[4], lm[5]) < 0.5 * palm) return null;                 // thumb must stick out
+  const dx = lm[4].x - lm[2].x, dy = lm[4].y - lm[2].y;
+  if (Math.abs(dy) < 1.4 * Math.abs(dx)) return null;               // and point up or down
+  const others = lm.filter((_, i) => i !== 4);
+  if (dy < 0 && others.every((p) => lm[4].y < p.y)) return "up";
+  if (dy > 0 && others.every((p) => lm[4].y > p.y)) return "down";
+  return null;
+}
+
+// ================= Smoothing (One Euro filter) =================
+class OneEuro {
+  constructor(minCutoff = 1.0, beta = 0.007, dCutoff = 1.0) { Object.assign(this, { minCutoff, beta, dCutoff, x: null, dx: 0, t: 0 }); }
+  static alpha(c, dt) { const tau = 1 / (2 * Math.PI * c); return 1 / (1 + tau / dt); }
+  filter(v, tMs) {
+    if (this.x === null) { this.x = v; this.t = tMs; return v; }
+    const dt = Math.max((tMs - this.t) / 1000, 1e-3); this.t = tMs;
+    this.dx += OneEuro.alpha(this.dCutoff, dt) * ((v - this.x) / dt - this.dx);
+    this.x += OneEuro.alpha(this.minCutoff + this.beta * Math.abs(this.dx), dt) * (v - this.x);
+    return this.x;
+  }
+}
+
+// ================= Elements =================
+const $ = (id) => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d"), cam = $("cam");
+const startBtn = $("start"), startPane = $("startPane"), startHint = $("startHint"), closeBtn = $("close"), camError = $("camError");
+const answerBar = $("answerBar"), yesBtn = $("yesBtn"), noBtn = $("noBtn"), bubble = $("bubble");
+const quizPanel = $("quizPanel"), heading = $("heading"), backBtn = $("back"), picker = $("picker");
+const list = $("list"), progress = $("progress"), muteBtn = $("mute");
+const result = $("result"), resultCard = $("resultCard"), party = $("party"), pctx = party.getContext("2d");
+
+let quizzes = [], quiz = null, S = STR.en;
+
+// ================= Voice and sounds =================
+let muted = false, audio = null;
+try { muted = localStorage.getItem("thumbsQuizMuted") === "1"; } catch {}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function pickVoice(lang) {
+  const all = speechSynthesis.getVoices();
+  const exact = all.filter((v) => v.lang.replace("_", "-").toLowerCase() === lang.toLowerCase());
+  const family = all.filter((v) => v.lang.toLowerCase().startsWith(lang.slice(0, 2)));
+  const pool = exact.length ? exact : family;
+  return pool.find((v) => /female|samantha|google|aria|jenny|salma|zariyah|hoda/i.test(v.name)) || pool[0] || null;
+}
+function speak(text, lang = S.voice) {
+  if (muted || !("speechSynthesis" in window)) return sleep(400);
+  return new Promise((resolve) => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang; u.rate = lang.startsWith("ar") ? 0.85 : 0.88; u.pitch = 1.15;
+    const v = pickVoice(lang); if (v) u.voice = v;
+    const done = () => { clearTimeout(timer); resolve(); };
+    const timer = setTimeout(done, 1500 + text.length * 90);   // some browsers never fire onend
+    u.onend = done; u.onerror = done;
+    speechSynthesis.speak(u);
+  });
+}
+if ("speechSynthesis" in window) speechSynthesis.getVoices();   // warm up the voice list
+function hush() { if ("speechSynthesis" in window) speechSynthesis.cancel(); }
+function tone(freq, start, dur, type = "sine", vol = 0.18) {
+  if (!audio) return;
+  const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime + start;
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (type === "sawtooth") o.frequency.exponentialRampToValueAtTime(freq / 2, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(audio.destination); o.start(t); o.stop(t + dur);
+}
+const chime = () => { tone(523, 0, .18); tone(659, .12, .18); tone(784, .24, .35); };
+const buzz = () => { tone(220, 0, .45, "sawtooth", .08); };
+const fanfare = () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .14, i === 3 ? .6 : .2));
+function renderMute() { muteBtn.textContent = muted ? "🔇" : "🔊"; muteBtn.setAttribute("aria-label", muted ? "Turn voice on" : "Turn voice off"); }
+muteBtn.addEventListener("click", () => {
+  muted = !muted; if (muted) hush();
+  try { localStorage.setItem("thumbsQuizMuted", muted ? "1" : "0"); } catch {}
+  renderMute();
+});
+renderMute();
+function unlockAudio() { try { audio ||= new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch {} }
+
+// ================= Quiz picker =================
+function setLang(lang) {
+  S = STR[lang] || STR.en;
+  for (const el of [quizPanel, resultCard, answerBar, startPane]) { el.lang = lang; el.dir = S.dir; }
+  yesBtn.textContent = "👍 " + S.yes; noBtn.textContent = "👎 " + S.no;
+  startBtn.textContent = S.start;
+}
+
+function showPicker() {
+  hush(); state = "idle"; quiz = null;
+  result.hidden = true; stopParty(); answerBar.hidden = true;
+  quizPanel.lang = "en"; quizPanel.dir = "ltr"; startPane.lang = "en"; startPane.dir = "ltr";
+  heading.textContent = "Pick a quiz"; backBtn.hidden = true;
+  progress.textContent = "Choose a quiz to play · اختر اختبارًا للعب";
+  picker.hidden = false; list.hidden = true;
+  startPane.hidden = false; startBtn.hidden = true; camError.hidden = true;
+  startHint.innerHTML = 'Pick a quiz to begin.<br><span lang="ar" dir="rtl">اختر اختبارًا للبدء.</span>';
+  picker.innerHTML = "";
+  for (const q of quizzes) {
+    const s = STR[q.lang] || STR.en;
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.className = "pick"; b.lang = q.lang; b.dir = s.dir;
+    b.innerHTML = `<span class="icon" aria-hidden="true"></span><span><span class="name"></span><span class="sub"></span></span><span class="tag"></span>`;
+    b.querySelector(".icon").textContent = q.icon || "❓";
+    b.querySelector(".name").textContent = q.title;
+    const sub = b.querySelector(".sub"), cnt = document.createElement("span");
+    cnt.style.whiteSpace = "nowrap"; cnt.textContent = s.count(num(q.questions.length, q.lang));
+    sub.append(q.subtitle + " · ", cnt);
+    b.querySelector(".tag").textContent = q.lang === "ar" ? "عربي" : "English";
+    b.addEventListener("click", () => chooseQuiz(q));
+    li.append(b); picker.append(li);
+  }
+}
+
+function chooseQuiz(q) {
+  unlockAudio();
+  quiz = q; setLang(q.lang);
+  heading.textContent = q.title; backBtn.hidden = false;
+  backBtn.setAttribute("aria-label", S.other); backBtn.title = S.other;
+  picker.hidden = true; list.hidden = false;
+  renderList();
+  progress.textContent = S.ready(num(q.questions.length, q.lang));
+  if (running) { startPane.hidden = true; answerBar.hidden = false; startGame(); }
+  else { startHint.innerHTML = S.hint; startBtn.hidden = false; startPane.hidden = false; }
+}
+
+backBtn.addEventListener("click", showPicker);
+
+// ================= Question list =================
+function renderList() {
+  list.innerHTML = "";
+  quiz.questions.forEach((q, i) => {
+    const li = document.createElement("li");
+    li.className = "q"; li.id = "q" + i;
+    li.innerHTML = `<div class="pic" aria-hidden="true"></div><div class="text"></div><div class="badge"></div>`;
+    li.querySelector(".pic").textContent = q.pic || "❓";
+    li.querySelector(".text").textContent = q.text;
+    list.append(li);
+  });
+}
+
+// ================= Game flow =================
+let state = "idle";   // idle | asking | feedback | done
+let index = 0, score = 0, round = 0;
+
+function setAnswerButtons(on) { yesBtn.disabled = noBtn.disabled = !on; }
+
+function startGame() {
+  round++;
+  result.hidden = true; stopParty();
+  renderList(); index = 0; score = 0;
+  ask(0);
+}
+
+function ask(i) {
+  index = i; state = "asking";
+  const q = quiz.questions[i], n = quiz.questions.length;
+  document.querySelectorAll(".q").forEach((el) => el.classList.remove("current"));
+  const card = $("q" + i);
+  card.classList.add("current");
+  const badge = card.querySelector(".badge");
+  badge.innerHTML = '<button class="replay">🔊</button>';
+  badge.firstChild.setAttribute("aria-label", S.hear); badge.firstChild.title = S.hear;
+  badge.firstChild.addEventListener("click", () => { hush(); speak(q.text); });
+  card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  progress.textContent = S.qOf(num(i + 1, quiz.lang), num(n, quiz.lang));
+  setAnswerButtons(true);
+  speak(q.text + S.ask);
+}
+
+async function answer(saidYes) {
+  if (state !== "asking") return;
+  state = "feedback"; setAnswerButtons(false); hush();
+  const myRound = round;
+  const q = quiz.questions[index], card = $("q" + index), badge = card.querySelector(".badge");
+  const correct = saidYes === q.answer;
+  bubble.className = ""; void bubble.offsetWidth;
+  bubble.textContent = saidYes ? "👍 " + S.yes : "👎 " + S.no;
+  bubble.lang = quiz.lang;
+  bubble.className = (saidYes ? "yes" : "no") + " show";
+  card.classList.remove("current");
+  card.classList.add(correct ? "right" : "wrong");
+  badge.innerHTML = correct ? '<span class="pop" role="img" aria-label="✓">⭐</span>'
+                            : '<span class="pop" role="img" aria-label="✗">✗</span>';
+  if (correct) { score++; chime(); } else buzz();
+  const say = correct ? S.praise[Math.floor(Math.random() * S.praise.length)] + " " + (q.answer ? "" : q.why || "")
+                      : S.oops + (q.why || "");
+  await Promise.all([speak(say.trim()), sleep(1700)]);
+  if (state !== "feedback" || round !== myRound) return;   // game was closed or restarted meanwhile
+  if (index + 1 < quiz.questions.length) ask(index + 1);
+  else finish();
+}
+
+function finish() {
+  state = "done";
+  const n = quiz.questions.length, L = quiz.lang;
+  const s = num(score, L), nn = num(n, L);
+  progress.textContent = S.done(s, nn);
+  const won = score >= Math.ceil(n * PASS_RATIO);
+  $("resultEmoji").textContent = won ? "🎉" : "🙂";
+  $("resultTitle").textContent = won ? S.win : S.lose;
+  $("stars").innerHTML = quiz.questions.map((_, i) => `<span class="${i < score ? "" : "off"}">⭐</span>`).join("");
+  $("score").textContent = S.score(s, nn);
+  $("again").textContent = won ? S.again : S.retry;
+  $("other").textContent = S.other;
+  result.hidden = false;
+  $("again").focus();
+  if (won) { fanfare(); startParty(); speak(S.winSay(s, nn)); }
+  else speak(S.loseSay(s, nn));
+}
+
+yesBtn.addEventListener("click", () => answer(true));
+noBtn.addEventListener("click", () => answer(false));
+$("again").addEventListener("click", () => { hush(); startGame(); });
+$("other").addEventListener("click", showPicker);
+
+// ================= Camera =================
+let landmarker = null, stream = null, running = false, rafId = 0, lastVideoTime = -1;
+const hands = new Map();
+const TIPS = [4, 8, 12, 16, 20];
+const COLORS = ["#ff4f6d", "#ffb13b", "#3be08b", "#3bb8ff", "#b46bff"];
+
+startBtn.addEventListener("click", async () => {
+  unlockAudio();
+  speak(S.letsPlay);
+  startBtn.disabled = true; camError.hidden = true;
+  const label = startBtn.textContent;
+  try {
+    if (!landmarker) { startBtn.textContent = "…"; landmarker = await loadTracker(); }
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("insecure");
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    video.srcObject = stream; await video.play();
+    running = true; resize(); rafId = requestAnimationFrame(loop);
+  } catch (e) {
+    console.error(e);
+    camError.textContent = S.noCam;
+    camError.hidden = false;
+  }
+  startBtn.disabled = false; startBtn.textContent = label;
+  startPane.hidden = running;            // without a camera, keep the message and play with buttons
+  if (!running) startBtn.hidden = true;
+  closeBtn.hidden = false; answerBar.hidden = false;
+  startGame();
+});
+
+closeBtn.addEventListener("click", () => {
+  running = false; cancelAnimationFrame(rafId); hush();
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = null; video.srcObject = null; lastVideoTime = -1; hands.clear(); gReset();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  state = "idle"; result.hidden = true; stopParty();
+  closeBtn.hidden = true; answerBar.hidden = true; camError.hidden = true;
+  if (quiz) { chooseQuiz(quiz); startBtn.focus(); } else showPicker();
+});
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1, r = cam.getBoundingClientRect();
+  canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(resize).observe(cam);
+
+function toPanel(p) {
+  const vw = video.videoWidth, vh = video.videoHeight, sw = cam.clientWidth, sh = cam.clientHeight;
+  const s = Math.max(sw / vw, sh / vh), dw = vw * s, dh = vh * s;
+  return { x: p.x * dw - (dw - sw) / 2, y: p.y * dh - (dh - sh) / 2 };
+}
+
+function loop() {
+  if (!running) return;
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    const t = performance.now();
+    update(landmarker.detectForVideo(video, t), t);
+  }
+  draw(performance.now());
+  rafId = requestAnimationFrame(loop);
+}
+
+function update(res, t) {
+  const used = new Set(); let gesture = null;
+  (res.landmarks || []).forEach((lm, i) => {
+    let key = res.handedness?.[i]?.[0]?.categoryName || "Hand"; if (used.has(key)) key += i; used.add(key);
+    let h = hands.get(key);
+    if (!h) { h = { f: lm.map(() => [new OneEuro(), new OneEuro()]), target: [], shown: null, seen: t }; hands.set(key, h); }
+    h.seen = t;
+    h.target = lm.map((p, j) => { const s = toPanel(p); return { x: h.f[j][0].filter(s.x, t), y: h.f[j][1].filter(s.y, t) }; });
+    if (!h.shown) h.shown = h.target.map((p) => ({ ...p }));
+    gesture ||= classifyGesture(lm);
+  });
+  trackGesture(gesture, t);
+}
+
+function draw(now) {
+  ctx.clearRect(0, 0, cam.clientWidth, cam.clientHeight);
+  for (const [key, h] of hands) {
+    const age = now - h.seen;
+    if (age > 400) { hands.delete(key); continue; }
+    ctx.globalAlpha = age <= 150 ? 1 : 1 - (age - 150) / 250;
+    h.shown.forEach((p, j) => { p.x += (h.target[j].x - p.x) * 0.5; p.y += (h.target[j].y - p.y) * 0.5; });
+    TIPS.forEach((tip, f) => {
+      const p = h.shown[tip];
+      ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS[f]; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = "#fff"; ctx.stroke();
+    });
+  }
+  ctx.globalAlpha = 1;
+}
+
+// A gesture counts after a short hold, once per hold; the hand must relax before it counts again
+let g = { cur: null, since: 0, fired: null, last: 0 };
+function gReset() { g = { cur: null, since: 0, fired: null, last: 0 }; }
+function trackGesture(x, t) {
+  if (x !== g.cur) { g.cur = x; g.since = t; }
+  if (x) g.last = t;
+  if (g.fired && t - g.last > 300) g.fired = null;
+  if (x && x !== g.fired && t - g.since >= 250) { g.fired = x; answer(x === "up"); }
+}
+
+// ================= Balloons and fireworks =================
+let partyRaf = 0;
+function stopParty() { cancelAnimationFrame(partyRaf); party.hidden = true; }
+function startParty() {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  party.hidden = false;
+  const dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
+  party.width = W * dpr; party.height = H * dpr; pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const hues = ["#ff4f6d", "#ffb13b", "#3be08b", "#3bb8ff", "#b46bff", "#ff7ad9", "#fbbf24"];
+  const pick = () => hues[Math.floor(Math.random() * hues.length)];
+  const balloons = Array.from({ length: 22 }, () => ({
+    x: Math.random() * W, y: H + 40 + Math.random() * H * 0.7, r: 24 + Math.random() * 14,
+    v: 90 + Math.random() * 90, phase: Math.random() * 6.28, c: pick(),
+  }));
+  const sparks = [];
+  let nextBurst = 0; const t0 = performance.now(); let prev = t0;
+  function burst(t) {
+    const x = W * (0.15 + Math.random() * 0.7), y = H * (0.12 + Math.random() * 0.35), c = pick();
+    for (let i = 0; i < 46; i++) {
+      const a = (i / 46) * Math.PI * 2, s = 120 + Math.random() * 160;
+      sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, born: t, c });
+    }
+  }
+  function frame(t) {
+    const dt = Math.min((t - prev) / 1000, 0.05); prev = t;
+    const el = t - t0;
+    pctx.clearRect(0, 0, W, H);
+    if (el < 4500 && t > nextBurst) { burst(t); nextBurst = t + 450 + Math.random() * 350; }
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i], life = (t - s.born) / 1100;
+      if (life >= 1) { sparks.splice(i, 1); continue; }
+      s.vy += 160 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 0.985;
+      pctx.globalAlpha = 1 - life; pctx.fillStyle = s.c;
+      pctx.beginPath(); pctx.arc(s.x, s.y, 3, 0, Math.PI * 2); pctx.fill();
+    }
+    pctx.globalAlpha = 1;
+    for (const b of balloons) {
+      b.y -= b.v * dt; const x = b.x + Math.sin(el / 600 + b.phase) * 14;
+      pctx.strokeStyle = "rgba(28,39,88,.45)"; pctx.lineWidth = 1.5;
+      pctx.beginPath(); pctx.moveTo(x, b.y + b.r * 1.2);
+      pctx.quadraticCurveTo(x - 8, b.y + b.r * 1.9, x, b.y + b.r * 2.8); pctx.stroke();
+      pctx.fillStyle = b.c;
+      pctx.beginPath(); pctx.ellipse(x, b.y, b.r * 0.85, b.r, 0, 0, Math.PI * 2); pctx.fill();
+      pctx.beginPath(); pctx.moveTo(x - 5, b.y + b.r + 6); pctx.lineTo(x + 5, b.y + b.r + 6); pctx.lineTo(x, b.y + b.r - 2); pctx.fill();
+      pctx.fillStyle = "rgba(255,255,255,.45)";
+      pctx.beginPath(); pctx.ellipse(x - b.r * 0.3, b.y - b.r * 0.35, b.r * 0.18, b.r * 0.28, -0.5, 0, Math.PI * 2); pctx.fill();
+    }
+    if (el < 9000) partyRaf = requestAnimationFrame(frame); else party.hidden = true;
+  }
+  partyRaf = requestAnimationFrame(frame);
+}
+
+// ================= Boot =================
+loadQuizzes().then((qs) => { quizzes = qs; showPicker(); });
+</script>
+</body>
+</html>
